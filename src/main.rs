@@ -243,8 +243,8 @@ fn setup() -> State {
 
 }
 
-fn post_reset(state: State) {
-  sendCommand(&state, ADCCommand::Sdatac);
+fn post_reset(state: &mut State) {
+  sendCommand(state, &ADCCommand::Sdatac);
 }
 
 fn main() {
