@@ -10,6 +10,7 @@ struct State {
     spi: spi::Spi
 }
 
+#[derive(Copy, Clone)]
 enum ADCCommand {
   Wakeup,
   Sleep,
@@ -26,7 +27,7 @@ enum ADCCommand {
   Nop
 }
 
-fn serializeCommand(cmd: ADCCommand) -> Vec<u8> {
+fn serializeCommand(cmd: &ADCCommand) -> Vec<u8> {
     use ADCCommand::*;
     match cmd {
         Wakeup => vec![0x0],
@@ -147,6 +148,7 @@ enum ExcCurrentOutput {
     Iexc2Output = 9
 }
 
+#[derive(Copy, Clone)]
 enum Register {
     Mux0 { bcs: BurnoutCurrentSource, mux_sp: InputChannel, mux_sn: InputChannel },
     Vbias { vbias: [bool; 8] },
@@ -199,11 +201,11 @@ fn registerIndex(reg: Register) -> u8 {
     }
 }
 
-fn sendCommand(state: State, cmd: ADCCommand) {
+fn sendCommand(state: &mut State, cmd: ADCCommand) {
     state.spi.write(&serializeCommand(cmd));
 }
 
-fn writeRegister(state: State, reg: Register) {
+fn writeRegister(state: &mut State, reg: Register) {
     let index = registerIndex(reg);
     let data = serializeRegister(reg);
     let cmd = ADCCommand::Wreg { reg: index, data: data };
@@ -243,7 +245,7 @@ fn setup() -> State {
 }
 
 fn post_reset(state: State) {
-  sendCommand(state, ADCCommand::Sdatac);
+  sendCommand(&state, ADCCommand::Sdatac);
 }
 
 fn main() {
