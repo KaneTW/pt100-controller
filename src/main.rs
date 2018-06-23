@@ -36,7 +36,7 @@ fn serializeCommand(cmd: &ADCCommand) -> Vec<u8> {
         Rdata => vec![0x12],
         Rdatac => vec![0x14],
         Sdatac => vec![0x16],
-        Rreg { reg, extra_count } => vec![0x20 | reg, extra_count],
+        Rreg { reg, extra_count } => vec![0x20 | reg, *extra_count],
         Wreg { reg, data } => { 
             let out = vec![0x40 | reg, data.len() as u8 - 1];
             out.extend_from_slice(&data);
@@ -220,7 +220,7 @@ const GPIO_MUX_INH: u8 = 24;
 const SPI_FREQ: u32 = 1000*1000;
 
 fn setup() -> State {
-  let gpio = gpio::Gpio::new().unwrap();
+  let mut gpio = gpio::Gpio::new().unwrap();
   gpio.set_mode(GPIO_RESET, gpio::Mode::Output);
   gpio.set_mode(GPIO_START, gpio::Mode::Output);
   
@@ -237,7 +237,7 @@ fn setup() -> State {
   gpio.write(GPIO_MUX_B, gpio::Level::Low);
   gpio.write(GPIO_MUX_INH, gpio::Level::Low);
 
-  let spi = spi::Spi::new(spi::Bus::Spi0, spi::SlaveSelect::Ss0, SPI_FREQ, spi::Mode::Mode1).unwrap();
+  let mut spi = spi::Spi::new(spi::Bus::Spi0, spi::SlaveSelect::Ss0, SPI_FREQ, spi::Mode::Mode1).unwrap();
 
   State { gpio: gpio, spi: spi }
 
