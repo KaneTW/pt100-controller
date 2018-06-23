@@ -166,16 +166,16 @@ fn serializeRegister(reg: Register) -> Vec<u8> {
     use Register::*;
     match reg {
         Mux0 { bcs, mux_sp, mux_sn } => vec![(bcs as u8) << 6 | (mux_sp as u8) << 3 | (mux_sn as u8)],
-        Vbias { vbias } => vec![foldByte(vbias)],
+        Vbias { vbias } => vec![foldByte(&vbias)],
         Mux1 { vrefcon, refselt, muxcal } => vec![(vrefcon as u8) << 5 | (refselt as u8) << 3 | (muxcal as u8)],
         Sys0 { pga, dr } => vec!{(pga as u8) << 4 | (dr as u8)],
         Ofc { ofc } => vec![ofc & 0xff0000, ofc & 0xff00, ofc & 0xff],
         Fsc { fsc } => vec![fsc & 0xff0000, fsc & 0xff00, fsc & 0xff],
         Idac0 { drdy_mode, imag } => vec![(drdy_mode as u8) << 3 | (imag as u8)],
         Idac1 { i1dir, i2dir } => vec![(i1dir as u8) << 4 | (i2dir as u8)],
-        Gpiocfg { iocfg } => vec![foldByte(iocfg)],
-        Gpiodir { iodir } => vec![foldByte(iodir)],
-        Gpiodat { iodat } => vec![foldByte(iodat)]
+        Gpiocfg { iocfg } => vec![foldByte(&iocfg)],
+        Gpiodir { iodir } => vec![foldByte(&iodir)],
+        Gpiodat { iodat } => vec![foldByte(&iodat)]
     }
  }
 
