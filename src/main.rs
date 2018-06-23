@@ -171,7 +171,7 @@ fn serializeRegister(reg: Register) -> Vec<u8> {
         Mux0 { bcs, mux_sp, mux_sn } => vec![(bcs as u8) << 6 | (mux_sp as u8) << 3 | (mux_sn as u8)],
         Vbias { vbias } => vec![foldByte(&vbias)],
         Mux1 { vrefcon, refselt, muxcal } => vec![(vrefcon as u8) << 5 | (refselt as u8) << 3 | (muxcal as u8)],
-        Sys0 { pga, dr } => vec!{(pga as u8) << 4 | (dr as u8)],
+        Sys0 { pga, dr } => vec![(pga as u8) << 4 | (dr as u8)],
         Ofc { ofc } => vec![((ofc & 0xff0000) >> 16) as u8, ((ofc & 0xff00) >> 8) as u8, (ofc & 0xff) as u8],
         Fsc { fsc } => vec![((fsc & 0xff0000) >> 16) as u8, ((fsc & 0xff00) >> 8) as u8, (fsc & 0xff) as u8],
         Idac0 { drdy_mode, imag } => vec![(drdy_mode as u8) << 3 | (imag as u8)],
