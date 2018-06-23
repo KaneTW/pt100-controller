@@ -27,6 +27,7 @@ enum ADCCommand {
 }
 
 fn serializeCommand(cmd: ADCCommand) -> Vec<u8> {
+    use ADCCommand::*;
     match cmd {
         Wakeup => vec![0x0],
         Sleep => vec![0x2],
@@ -162,6 +163,7 @@ fn foldByte(array: &[bool; 8]) -> u8 {
 }
 
 fn serializeRegister(reg: Register) -> Vec<u8> {
+    use Register::*;
     match reg {
         Mux0 { bcs, mux_sp, mux_sn } => vec![(bcs as u8) << 6 | (mux_sp as u8) << 3 | (mux_sn as u8)],
         Vbias { vbias } => vec![foldByte(vbias)],
@@ -178,6 +180,7 @@ fn serializeRegister(reg: Register) -> Vec<u8> {
  }
 
 fn registerIndex(reg: Register) -> u8 {
+    use Register::*;
     match reg {
         Mux0 {} => 0,
         Vbias {} => 1,
@@ -194,14 +197,14 @@ fn registerIndex(reg: Register) -> u8 {
 }
 
 fn sendCommand(state: State, cmd: ADCCommand) {
-    state.spi.write(serializeCommand(cmd));
+    state.spi.write(&serializeCommand(cmd));
 }
 
 fn writeRegister(state: State, reg: Register) {
     let index = registerIndex(reg);
     let data = serializeRegister(reg);
     let cmd = ADCCommand::Wreg { reg: index, data: data };
-    sendCommand(cmd);
+    sendCommand(state, cmd);
 }
 
 const GPIO_RESET: u8 = 17;
@@ -230,9 +233,9 @@ fn setup() -> State {
   gpio.write(GPIO_MUX_B, gpio::Level::Low);
   gpio.write(GPIO_MUX_INH, gpio::Level::Low);
 
-  let spi = spi::Spi::new(spi::Bus::Spi0, spi::SlaveSelect::Ss0, SPI_FREQ, spi::Mode::Mode1);
+  let spi = spi::Spi::new(spi::Bus::Spi0, spi::SlaveSelect::Ss0, SPI_FREQ, spi::Mode::Mode1).unwrap();
 
-  State { gpio: gpio, spi: spi };
+  State { gpio: gpio, spi: spi }
 
 }
 
