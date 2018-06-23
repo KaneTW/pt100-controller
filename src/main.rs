@@ -168,6 +168,11 @@ fn fold_byte(array: &[bool; 8]) -> u8 {
     array.iter().rev().fold(0, |acc, &b| acc << 1 | b as u8)
 }
 
+// register order
+fn serialize_24bit(n: u32) -> Vec<u8> {
+    vec![(n & 0xff) as u8, ((ofc & 0xff00) >> 8) as u8, ((ofc & 0xff0000) >> 16) as u8]
+}
+
 fn serialize_register(reg: Register) -> Vec<u8> {
     use Register::*;
     match reg {
@@ -175,8 +180,8 @@ fn serialize_register(reg: Register) -> Vec<u8> {
         Vbias { vbias } => vec![fold_byte(&vbias)],
         Mux1 { vrefcon, refselt, muxcal } => vec![(vrefcon as u8) << 5 | (refselt as u8) << 3 | (muxcal as u8)],
         Sys0 { pga, dr } => vec![(pga as u8) << 4 | (dr as u8)],
-        Ofc { ofc } => vec![((ofc & 0xff0000) >> 16) as u8, ((ofc & 0xff00) >> 8) as u8, (ofc & 0xff) as u8],
-        Fsc { fsc } => vec![((fsc & 0xff0000) >> 16) as u8, ((fsc & 0xff00) >> 8) as u8, (fsc & 0xff) as u8],
+        Ofc { ofc } => serialize_24bit(ofc),
+        Fsc { fsc } => serialize_24bit(fsc),
         Idac0 { drdy_mode, imag } => vec![(drdy_mode as u8) << 3 | (imag as u8)],
         Idac1 { i1dir, i2dir } => vec![(i1dir as u8) << 4 | (i2dir as u8)],
         Gpiocfg { iocfg } => vec![fold_byte(&iocfg)],
@@ -299,6 +304,14 @@ fn read_last_measurement(state: &mut State) -> u32 {
     (read_buffer[1] as u32) << 16 | (read_buffer[2] as u32) << 8 | (read_buffer[3] as u32)
 }
 
+fn chop(state: &mut State, chop: bool) {
+    if chop {
+         write_register(state, Register::Idac1 { i1dir: ExcCurrentOutput::Iexc2, i2dir: ExcCurrentOutput::Iexc1});
+    } else {
+         write_register(state, Register::Idac1 { i1dir: ExcCurrentOutput::Iexc1, i2dir: ExcCurrentOutput::Iexc2});
+    }
+}
+
 fn main() {
     let mut state = setup();
     post_reset(&mut state);
@@ -307,6 +320,11 @@ fn main() {
     
     for ch in infinite_channels {
         select_output(&mut state, *ch);
+        chop(&mut state, false);
+        state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
+        let code = read_last_measurement(&mut state);
+        println!("{:?}: {}", ch, code);
+        chop(&mut state, true);
         state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
         let code = read_last_measurement(&mut state);
         println!("{:?}: {}", ch, code);
