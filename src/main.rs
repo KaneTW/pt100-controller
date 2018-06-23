@@ -2,8 +2,10 @@ extern crate rppal;
 
 use rppal::spi;
 use rppal::gpio;
+use std::mem;
 use std::time;
 use std::thread;
+
 
 struct State {
     gpio: gpio::Gpio,
@@ -26,7 +28,7 @@ enum ADCCommand {
   Nop
 }
 
-fn serializeCommand(cmd: &ADCCommand) -> Vec<u8> {
+fn serialize_command(cmd: &ADCCommand) -> Vec<u8> {
     use ADCCommand::*;
     match cmd {
         Wakeup => vec![0x0],
@@ -70,9 +72,9 @@ enum InputChannel {
 
 #[derive(Copy, Clone)]
 enum InternalReferenceControl {
-    InternalReferenceOff = 0,
-    InternalReferenceOn = 1,
-    InternalReferenceOnInUse = 2
+    Off = 0,
+    On = 1,
+    OnInUse = 2
 }
 
 #[derive(Copy, Clone)]
@@ -143,8 +145,8 @@ enum ExcCurrentOutput {
     Ain5 = 5,
     Ain6 = 6,
     Ain7 = 7,
-    Iexc1Output = 8,
-    Iexc2Output = 9
+    Iexc1 = 8,
+    Iexc2 = 9
 }
 
 #[derive(Copy, Clone)]
@@ -162,28 +164,28 @@ enum Register {
     Gpiodat { iodat: [bool; 8] } 
 }
 
-fn foldByte(array: &[bool; 8]) -> u8 {
+fn fold_byte(array: &[bool; 8]) -> u8 {
     array.iter().rev().fold(0, |acc, &b| acc << 1 | b as u8)
 }
 
-fn serializeRegister(reg: Register) -> Vec<u8> {
+fn serialize_register(reg: Register) -> Vec<u8> {
     use Register::*;
     match reg {
         Mux0 { bcs, mux_sp, mux_sn } => vec![(bcs as u8) << 6 | (mux_sp as u8) << 3 | (mux_sn as u8)],
-        Vbias { vbias } => vec![foldByte(&vbias)],
+        Vbias { vbias } => vec![fold_byte(&vbias)],
         Mux1 { vrefcon, refselt, muxcal } => vec![(vrefcon as u8) << 5 | (refselt as u8) << 3 | (muxcal as u8)],
         Sys0 { pga, dr } => vec![(pga as u8) << 4 | (dr as u8)],
         Ofc { ofc } => vec![((ofc & 0xff0000) >> 16) as u8, ((ofc & 0xff00) >> 8) as u8, (ofc & 0xff) as u8],
         Fsc { fsc } => vec![((fsc & 0xff0000) >> 16) as u8, ((fsc & 0xff00) >> 8) as u8, (fsc & 0xff) as u8],
         Idac0 { drdy_mode, imag } => vec![(drdy_mode as u8) << 3 | (imag as u8)],
         Idac1 { i1dir, i2dir } => vec![(i1dir as u8) << 4 | (i2dir as u8)],
-        Gpiocfg { iocfg } => vec![foldByte(&iocfg)],
-        Gpiodir { iodir } => vec![foldByte(&iodir)],
-        Gpiodat { iodat } => vec![foldByte(&iodat)]
+        Gpiocfg { iocfg } => vec![fold_byte(&iocfg)],
+        Gpiodir { iodir } => vec![fold_byte(&iodir)],
+        Gpiodat { iodat } => vec![fold_byte(&iodat)]
     }
  }
 
-fn registerIndex(reg: Register) -> u8 {
+fn register_index(reg: Register) -> u8 {
     use Register::*;
     match reg {
         Mux0 { bcs, mux_sp, mux_sn } => 0,
@@ -200,15 +202,16 @@ fn registerIndex(reg: Register) -> u8 {
     }
 }
 
-fn sendCommand(state: &mut State, cmd: &ADCCommand) {
-    state.spi.write(&serializeCommand(cmd));
+fn send_command(state: &mut State, cmd: &ADCCommand) {
+    let data = serialize_command(cmd);
+    state.spi.write(&data).unwrap();
 }
 
-fn writeRegister(state: &mut State, reg: Register) {
-    let index = registerIndex(reg);
-    let data = serializeRegister(reg);
+fn write_register(state: &mut State, reg: Register) {
+    let index = register_index(reg);
+    let data = serialize_register(reg);
     let cmd = ADCCommand::Wreg { reg: index, data: data };
-    sendCommand(state, &cmd);
+    send_command(state, &cmd);
 }
 
 const GPIO_RESET: u8 = 17;
@@ -217,7 +220,7 @@ const GPIO_DRDY: u8 = 25;
 const GPIO_MUX_A: u8 = 22;
 const GPIO_MUX_B: u8 = 23;
 const GPIO_MUX_INH: u8 = 24;
-const SPI_FREQ: u32 = 1000*1000;
+const SPI_FREQ: u32 = 500*1000;
 
 fn setup() -> State {
   let mut gpio = gpio::Gpio::new().unwrap();
@@ -236,6 +239,8 @@ fn setup() -> State {
   gpio.write(GPIO_MUX_A, gpio::Level::Low);
   gpio.write(GPIO_MUX_B, gpio::Level::Low);
   gpio.write(GPIO_MUX_INH, gpio::Level::Low);
+  
+  gpio.set_interrupt(GPIO_DRDY, gpio::Trigger::FallingEdge).unwrap();
 
   let mut spi = spi::Spi::new(spi::Bus::Spi0, spi::SlaveSelect::Ss0, SPI_FREQ, spi::Mode::Mode1).unwrap();
 
@@ -244,10 +249,66 @@ fn setup() -> State {
 }
 
 fn post_reset(state: &mut State) {
-  sendCommand(state, &ADCCommand::Sdatac);
+  send_command(state, &ADCCommand::Reset);
+  thread::sleep(time::Duration::from_micros(600));
+  send_command(state, &ADCCommand::Sdatac);
+  write_register(state, Register::Mux1 { vrefcon: InternalReferenceControl::On, refselt: ReferenceSelectControl::Ref0, muxcal: SystemMonitorControl::NormalOp});
+  write_register(state, Register::Sys0 { pga: PgaGain::Gain4, dr: DataRate::Sps20});
+  write_register(state, Register::Idac0 { drdy_mode: false, imag: ExcCurrentMagnitude::Exc1000});
+  write_register(state, Register::Idac1 { i1dir: ExcCurrentOutput::Iexc1, i2dir: ExcCurrentOutput::Iexc2})
+}
+
+#[derive(Copy, Clone, Debug)]
+enum Channel {
+    Ch1,
+    Ch2,
+    Ch3,
+    Ch4
+}
+
+fn select_output(state: &mut State, ch: Channel) {
+    use Channel::*;
+    match ch {
+        Ch1 => { 
+            state.gpio.write(GPIO_MUX_A, gpio::Level::Low);
+            state.gpio.write(GPIO_MUX_B, gpio::Level::Low);
+            write_register(state, Register::Mux0 { bcs : BurnoutCurrentSource::BcsOff, mux_sp: InputChannel::Ain0, mux_sn: InputChannel::Ain5})
+        },
+        Ch2 => { 
+            state.gpio.write(GPIO_MUX_A, gpio::Level::High);
+            state.gpio.write(GPIO_MUX_B, gpio::Level::Low);
+            write_register(state, Register::Mux0 { bcs : BurnoutCurrentSource::BcsOff, mux_sp: InputChannel::Ain4, mux_sn: InputChannel::Ain1})
+        },
+        Ch3 => { 
+            state.gpio.write(GPIO_MUX_A, gpio::Level::Low);
+            state.gpio.write(GPIO_MUX_B, gpio::Level::High);
+            write_register(state, Register::Mux0 { bcs : BurnoutCurrentSource::BcsOff, mux_sp: InputChannel::Ain2, mux_sn: InputChannel::Ain3})
+        },
+        Ch4 => { 
+            state.gpio.write(GPIO_MUX_A, gpio::Level::High);
+            state.gpio.write(GPIO_MUX_B, gpio::Level::High);
+            write_register(state, Register::Mux0 { bcs : BurnoutCurrentSource::BcsOff, mux_sp: InputChannel::Ain6, mux_sn: InputChannel::Ain7})
+        }
+    }
+}
+
+fn read_last_measurement(state: &mut State) -> u32 {
+    let mut read_buffer: [u8; 4] = [0; 4];
+    let write_buffer: Vec<u8> = [ADCCommand::Rdata, ADCCommand::Nop, ADCCommand::Nop, ADCCommand::Nop].iter().flat_map(|cmd| serialize_command(cmd)).collect();
+    state.spi.transfer(&mut read_buffer, &write_buffer).unwrap();
+    (read_buffer[1] as u32) << 16 | (read_buffer[2] as u32) << 8 | (read_buffer[3] as u32)
 }
 
 fn main() {
-
-    println!("Hello, world!");
+    let mut state = setup();
+    post_reset(&mut state);
+    let chs = [Channel::Ch1, Channel::Ch2, Channel::Ch3, Channel::Ch4];
+    let infinite_channels = chs.iter().cycle();
+    
+    for ch in infinite_channels {
+        select_output(&mut state, *ch);
+        state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
+        let code = read_last_measurement(&mut state);
+        println!("{:?}: {}", ch, code);
+    }
 }
