@@ -170,7 +170,7 @@ fn fold_byte(array: &[bool; 8]) -> u8 {
 
 // register order
 fn serialize_24bit(n: u32) -> Vec<u8> {
-    vec![(n & 0xff) as u8, ((ofc & 0xff00) >> 8) as u8, ((ofc & 0xff0000) >> 16) as u8]
+    vec![(n & 0xff) as u8, ((n & 0xff00) >> 8) as u8, ((n & 0xff0000) >> 16) as u8]
 }
 
 fn serialize_register(reg: Register) -> Vec<u8> {
