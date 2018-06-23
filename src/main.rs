@@ -182,17 +182,17 @@ fn serializeRegister(reg: Register) -> Vec<u8> {
 fn registerIndex(reg: Register) -> u8 {
     use Register::*;
     match reg {
-        Mux0 {} => 0,
-        Vbias {} => 1,
-        Mux1 {} => 2,
-        Sys0 {} => 3,
-        Ofc {} => 4,
-        Fsc {} => 7,
-        Idac0 {} => 0xa,
-        Idac1 {} => 0xb,
-        Gpiocfg {} => 0xc,
-        Gpiodir {} => 0xd,
-        Gpiodat {} => 0xe
+        Mux0 { bcs, mux_sp, mux_sn } => 0,
+        Vbias { vbias } => 1,
+        Mux1 { vrefcon, refselt, muxcal } => 2,
+        Sys0 { pga, dr } => 3,
+        Ofc { ofc } => 4,
+        Fsc { fsc } => 7,
+        Idac0 { drdy_mode, imag } => 0xa,
+        Idac1 { i1dir, i2dir } => 0xb,
+        Gpiocfg { iocfg } => 0xc,
+        Gpiodir { iodir } => 0xd,
+        Gpiodat { iodat } => 0xe
     }
 }
 
