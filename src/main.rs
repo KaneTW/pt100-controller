@@ -37,7 +37,10 @@ fn serializeCommand(cmd: ADCCommand) -> Vec<u8> {
         Rdatac => vec![0x14],
         Sdatac => vec![0x16],
         Rreg { reg, extra_count } => vec![0x20 | reg, extra_count],
-        Wreg { reg, data } => vec![0x40 | reg, data.len() as u8 - 1].append(&data),
+        Wreg { reg, data } => { 
+            let out = vec![0x40 | reg, data.len() as u8 - 1];
+            out.append(&data);
+            out },
         Sysocal => vec![0x60],
         Sysgcal => vec![0x61],
         Selfocal => vec![0x62],
