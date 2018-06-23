@@ -10,7 +10,6 @@ struct State {
     spi: spi::Spi
 }
 
-#[derive(Copy, Clone)]
 enum ADCCommand {
   Wakeup,
   Sleep,
@@ -201,7 +200,7 @@ fn registerIndex(reg: Register) -> u8 {
     }
 }
 
-fn sendCommand(state: &mut State, cmd: ADCCommand) {
+fn sendCommand(state: &mut State, cmd: &ADCCommand) {
     state.spi.write(&serializeCommand(cmd));
 }
 
@@ -209,7 +208,7 @@ fn writeRegister(state: &mut State, reg: Register) {
     let index = registerIndex(reg);
     let data = serializeRegister(reg);
     let cmd = ADCCommand::Wreg { reg: index, data: data };
-    sendCommand(state, cmd);
+    sendCommand(state, &cmd);
 }
 
 const GPIO_RESET: u8 = 17;
