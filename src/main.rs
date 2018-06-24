@@ -387,10 +387,11 @@ fn main() {
     let mut avg: HashMap<&Channel, f64> = chs.iter().map(|x| (x,0.0)).collect();
 
     thread::spawn(move || {
+        thread::sleep(time::Duration::from_secs(0.5));
         let metric_families = prometheus::gather();
         prometheus::push_metrics(
             "smoker-pt100",
-            labels!{"instance".to_owned() => "smoker-rpi".to_owneD(),},
+            labels!{"instance".to_owned() => "smoker-rpi".to_owned(),},
             &"http://127.0.0.1:9091",
             metric_families
         ).unwrap();
