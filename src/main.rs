@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use std::time;
 use std::thread;
 
+use prometheus::{GaugeVec, IntGaugeVec};
+
 const LABELS: &'static [&'static str] = &["Channel"];
 
 lazy_static! {
@@ -402,7 +404,7 @@ fn main() {
         let temp = pt100_conversion(r);
 
         
-        let ch_idx_str = &(ch as u32).to_string();
+        let ch_idx_str = &(*ch as u32).to_string();
 
         TEMP_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(temp);
         RES_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(r);
