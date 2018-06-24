@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::time;
 use std::thread;
 
-const LABELS: &'static [&'static str] = &["Channel"]
+const LABELS: &'static [&'static str] = &["Channel"];
 
 lazy_static! {
     static ref TEMP_GAUGE_VEC: GaugeVec = register_gauge_vec!(
