@@ -389,7 +389,7 @@ fn main() {
     let mut avg: HashMap<&Channel, f64> = chs.iter().map(|x| (x,0.0)).collect();
 
     thread::spawn(move || {
-        thread::sleep(time::Duration::from_secs(0.5));
+        thread::sleep(time::Duration::from_millis(500));
         let metric_families = prometheus::gather();
         prometheus::push_metrics(
             "smoker-pt100",
@@ -408,8 +408,8 @@ fn main() {
 
         TEMP_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(temp);
         RES_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(r);
-        CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(c);
-        RAW_CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(uc);
+        CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(c as i64);
+        RAW_CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(uc as i64);
 
         println!("{:?}: [{},{},{},{}]", ch, temp, r, c, uc);
     }
