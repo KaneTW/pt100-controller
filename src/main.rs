@@ -23,10 +23,10 @@ lazy_static! {
     static ref RES_GAUGE_VEC: GaugeVec = register_gauge_vec!(
         "Resistance", "Measured resistance", LABELS
     ).unwrap();
-    static ref CODE_GAUGE_VEC: GaugeVec = register_int_gauge_vec!(
+    static ref CODE_GAUGE_VEC: IntGaugeVec = register_int_gauge_vec!(
         "Code", "Calibrated ADC code", LABELS
     ).unwrap();
-    static ref RAW_CODE_GAUGE_VEC: GaugeVec = register_int_gauge_vec!(
+    static ref RAW_CODE_GAUGE_VEC: IntGaugeVec = register_int_gauge_vec!(
         "RawCode", "Uncalibrated ADC code", LABELS
     ).unwrap();
 }
