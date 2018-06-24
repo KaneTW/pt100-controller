@@ -1,15 +1,39 @@
+
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate prometheus;
+
 extern crate rppal;
 
 use rppal::spi;
 use rppal::gpio;
-use std::mem;
+use std::collections::HashMap;
 use std::time;
 use std::thread;
 
+const LABELS: &'static [&'static str] = &["Channel"]
+
+lazy_static! {
+    static ref TEMP_GAUGE_VEC: GaugeVec = register_gauge_vec!(
+        "Temperature", "Measured Pt100 temperature", LABELS
+    ).unwrap();
+    static ref RES_GAUGE_VEC: GaugeVec = register_gauge_vec!(
+        "Resistance", "Measured resistance", LABELS
+    ).unwrap();
+    static ref CODE_GAUGE_VEC: GaugeVec = register_int_gauge_vec!(
+        "Code", "Calibrated ADC code", LABELS
+    ).unwrap();
+    static ref RAW_CODE_GAUGE_VEC: GaugeVec = register_int_gauge_vec!(
+        "RawCode", "Uncalibrated ADC code", LABELS
+    ).unwrap();
+}
 
 struct State {
     gpio: gpio::Gpio,
-    spi: spi::Spi
+    spi: spi::Spi,
+    offset_calibration: HashMap<Channel, u32>,
+    gain_calibration: HashMap<Channel, f64>
 }
 
 enum ADCCommand {
@@ -225,7 +249,7 @@ const GPIO_DRDY: u8 = 25;
 const GPIO_MUX_A: u8 = 22;
 const GPIO_MUX_B: u8 = 23;
 const GPIO_MUX_INH: u8 = 24;
-const SPI_FREQ: u32 = 500*1000;
+const SPI_FREQ: u32 = 100*1000;
 
 fn setup() -> State {
   let mut gpio = gpio::Gpio::new().unwrap();
@@ -249,7 +273,7 @@ fn setup() -> State {
 
   let mut spi = spi::Spi::new(spi::Bus::Spi0, spi::SlaveSelect::Ss0, SPI_FREQ, spi::Mode::Mode1).unwrap();
 
-  State { gpio: gpio, spi: spi }
+  State { gpio: gpio, spi: spi, offset_calibration: HashMap::new(), gain_calibration: HashMap::new() }
 
 }
 
@@ -263,7 +287,7 @@ fn post_reset(state: &mut State) {
   write_register(state, Register::Idac1 { i1dir: ExcCurrentOutput::Iexc1, i2dir: ExcCurrentOutput::Iexc2})
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 enum Channel {
     Ch1,
     Ch2,
@@ -312,21 +336,78 @@ fn chop(state: &mut State, chop: bool) {
     }
 }
 
+fn measure(state: &mut State, ch: Channel) -> (f64, u32, u32) {
+    select_output(state, ch);
+    let offset = state.offset_calibration.get(&ch).cloned().unwrap_or(0);
+    let gain = state.gain_calibration.get(&ch).cloned().unwrap_or(1.0);
+
+    chop(state, false);
+    state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
+    let uncal_code1 = read_last_measurement(state);
+    let code1 = uncal_code1.saturating_sub(offset) as f64 * gain;
+
+    chop(state, true);
+    state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
+    let uncal_code2 = read_last_measurement(state);
+    let code2 = uncal_code2.saturating_sub(offset) as f64 * gain;
+
+    let code = (code1 + code2)/2.0;
+    (820.0 * code / 2.0_f64.powf(24.0), (code1 as u32 + code2 as u32)/2, (uncal_code1 + uncal_code2)/2)
+}
+
+fn set_calibration(state: &mut State) {
+    state.offset_calibration.insert(Channel::Ch1, 113);
+    state.offset_calibration.insert(Channel::Ch2, 102);
+    state.offset_calibration.insert(Channel::Ch3, 74);
+    state.offset_calibration.insert(Channel::Ch4, 59);
+
+    state.gain_calibration.insert(Channel::Ch1, 1.00457715508595);
+    state.gain_calibration.insert(Channel::Ch2, 1.004309456823663);
+    state.gain_calibration.insert(Channel::Ch3, 1.00637250996896);
+    state.gain_calibration.insert(Channel::Ch4, 1.0063412745782756);
+}
+
+fn pt100_conversion(rt: f64) -> f64 {
+    let A = 3.9083e-3_f64;
+    let B = -5.775e-7_f64;
+    let R0 = 100.0;
+   -A/(2.0*B) - 0.5 * ((A.powf(2.0) * R0 - 4.0 * B * R0 + 4.0 * B * rt)/(B.powf(2.0) * R0)).sqrt()
+}
+
 fn main() {
     let mut state = setup();
+
+    set_calibration(&mut state);
+
     post_reset(&mut state);
     let chs = [Channel::Ch1, Channel::Ch2, Channel::Ch3, Channel::Ch4];
     let infinite_channels = chs.iter().cycle();
     
+    let mut count: HashMap<&Channel, u64> = chs.iter().map(|x| (x,0)).collect();
+    let mut avg: HashMap<&Channel, f64> = chs.iter().map(|x| (x,0.0)).collect();
+
+    thread::spawn(move || {
+        let metric_families = prometheus::gather();
+        prometheus::push_metrics(
+            "smoker-pt100",
+            labels!{"instance".to_owned() => "smoker-rpi".to_owneD(),},
+            &"http://127.0.0.1:9091",
+            metric_families
+        ).unwrap();
+    });
+
     for ch in infinite_channels {
-        select_output(&mut state, *ch);
-        chop(&mut state, false);
-        state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
-        let code = read_last_measurement(&mut state);
-        println!("{:?}: {}", ch, code);
-        chop(&mut state, true);
-        state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
-        let code = read_last_measurement(&mut state);
-        println!("{:?}: {}", ch, code);
+        let (r,c,uc) = measure(&mut state, *ch);
+        let temp = pt100_conversion(r);
+
+        
+        let ch_idx_str = &(ch as u32).to_string();
+
+        TEMP_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(temp);
+        RES_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(r);
+        CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(c);
+        RAW_CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(uc);
+
+        println!("{:?}: [{},{},{},{}]", ch, temp, r, c, uc);
     }
 }
