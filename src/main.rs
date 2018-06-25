@@ -376,12 +376,12 @@ fn main() {
     let host = env::var("PT100_INFLUXDB_URL").unwrap();
 
     let credentials = Credentials {
-        username: &user,
-        password: &pass,
-        database: &db,
+        username: user.as_str(),
+        password: pass.as_str(),
+        database: db.as_str(),
     };
 
-    let hosts = vec![&host];
+    let hosts = vec![host.as_str()];
 
     let (tx,rx) = sync_channel::<(u32,f64,f64,u32,u32,i64)>(1024);
 
