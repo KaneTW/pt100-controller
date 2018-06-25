@@ -392,7 +392,7 @@ fn main() {
             measurement.add_field("code", Value::Integer(c as i64));
             measurement.add_field("raw_code", Value::Integer(uc as i64));
             measurement.add_tag("channel", n.to_string());
-            client.write_one(measurement, None);
+            client.write_one(measurement, None).unwrap();
         }
     });
 
