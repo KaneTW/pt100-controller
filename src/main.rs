@@ -330,12 +330,21 @@ fn measure(state: &mut State, ch: Channel) -> (f64, u32, u32) {
     let gain = state.gain_calibration.get(&ch).cloned().unwrap_or(1.0);
 
     chop(state, false);
-    state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
+    // TODO this depends on Sps
+    let result1 = state.gpio.poll_interrupt(GPIO_DRDY, true, Some(time::Duration::from_millis(70))).unwrap();
+    match result1 {
+        None => post_reset(); return measure(state, ch)
+        Some(_) => ()
+    }
     let uncal_code1 = read_last_measurement(state);
     let code1 = uncal_code1.saturating_sub(offset) as f64 * gain;
 
     chop(state, true);
-    state.gpio.poll_interrupt(GPIO_DRDY, true, None).unwrap();
+    let result2 = state.gpio.poll_interrupt(GPIO_DRDY, true, Some(time::Duration::from_millis(70))).unwrap();
+    match result2 {
+        None => post_reset(); return measure(state, ch)
+        Some(_) => ()
+    }
     let uncal_code2 = read_last_measurement(state);
     let code2 = uncal_code2.saturating_sub(offset) as f64 * gain;
 
