@@ -371,16 +371,16 @@ fn main() {
     let chs = [Channel::Ch1, Channel::Ch2, Channel::Ch3, Channel::Ch4];
 
     let credentials = Credentials {
-        username: env::var("PT100_INFLUXDB_USER").unwrap(),
-        password: env::var("PT100_INFLUXDB_PASS").unwrap(),
-        database: env::var("PT100_INFLUXDB_DB").unwrap(),
+        username: &env::var("PT100_INFLUXDB_USER").unwrap(),
+        password: &env::var("PT100_INFLUXDB_PASS").unwrap(),
+        database: &env::var("PT100_INFLUXDB_DB").unwrap(),
     };
 
     let hosts = vec![env::var("PT100_INFLUXDB_URL").unwrap()];
 
     let client = create_client(credentials, hosts);
 
-    let (tx,rx) = sync_channel::<i32>(1024);
+    let (tx,rx) = sync_channel::<(u32,f64,f64,u32,u32,i64)>(1024);
 
     thread::spawn(move || {
         loop {
