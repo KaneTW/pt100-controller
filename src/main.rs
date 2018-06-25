@@ -376,7 +376,7 @@ fn main() {
         database: &env::var("PT100_INFLUXDB_DB").unwrap(),
     };
 
-    let hosts = vec![env::var("PT100_INFLUXDB_URL").unwrap()];
+    let hosts = vec![&env::var("PT100_INFLUXDB_URL").unwrap()];
 
     let client = create_client(credentials, hosts);
 
