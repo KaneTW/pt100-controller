@@ -370,9 +370,9 @@ fn main() {
     let chs = [Channel::Ch1, Channel::Ch2, Channel::Ch3, Channel::Ch4];
 
     let credentials = Credentials {
-        username: env!("PT100_INFLUXDB_USER"),
-        password: env!("PT100_INFLUXDB_PASS"),
-        database: env!("PT100_INFLUXDB_DB"),
+        username: env::var("PT100_INFLUXDB_USER").unwrap(),
+        password: env::var("PT100_INFLUXDB_PASS").unwrap(),
+        database: env::var("PT100_INFLUXDB_DB").unwrap(),
     };
 
     let hosts = vec!["http://localhost:8086"];
