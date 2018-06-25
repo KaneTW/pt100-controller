@@ -370,18 +370,18 @@ fn main() {
     post_reset(&mut state);
     let chs = [Channel::Ch1, Channel::Ch2, Channel::Ch3, Channel::Ch4];
 
-    let user = env::var("PT100_INFLUXDB_USER").unwrap().as_str();
-    let pass = env::var("PT100_INFLUXDB_PASS").unwrap().as_str();
-    let db = env::var("PT100_INFLUXDB_DB").unwrap().as_str();
-    let host = env::var("PT100_INFLUXDB_URL").unwrap().as_str();
-    
+    let user = env::var("PT100_INFLUXDB_USER").unwrap();
+    let pass = env::var("PT100_INFLUXDB_PASS").unwrap();
+    let db = env::var("PT100_INFLUXDB_DB").unwrap();
+    let host = env::var("PT100_INFLUXDB_URL").unwrap();
+
     let credentials = Credentials {
-        username: user,
-        password: pass,
-        database: db,
+        username: &user,
+        password: &pass,
+        database: &db,
     };
 
-    let hosts = vec![host];
+    let hosts = vec![&host];
 
     let (tx,rx) = sync_channel::<(u32,f64,f64,u32,u32,i64)>(1024);
 
