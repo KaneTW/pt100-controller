@@ -6,9 +6,10 @@ extern crate rppal;
 use rppal::spi;
 use rppal::gpio;
 use std::collections::HashMap;
+use std::env;
+use std::sync::mpsc::sync_channel;
 use std::time;
 use std::thread;
-use std::sync::{Arc, Barrier};
 
 
 use influent::create_client;
@@ -403,7 +404,7 @@ fn main() {
             let ch_idx = *ch as u32;
 
             let duration = time::SystemTime::now().duration_since(time::UNIX_EPOCH).unwrap();
-            let ts = duration.as_secs() * 1000 * 1000 * 1000 as i64 + (duration.subsec_nanos() as i64);
+            let ts = duration.as_secs() as i64 * 1000 * 1000 * 1000 + (duration.subsec_nanos() as i64);
             tx.send((ch_idx, temp, r, c, uc, ts)).unwrap();
 
             println!("{:?}: [{},{},{},{}]", ch, temp, r, c, uc);
