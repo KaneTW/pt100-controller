@@ -333,7 +333,7 @@ fn measure(state: &mut State, ch: Channel) -> (f64, u32, u32) {
     // TODO this depends on Sps
     let result1 = state.gpio.poll_interrupt(GPIO_DRDY, true, Some(time::Duration::from_millis(70))).unwrap();
     match result1 {
-        None => post_reset(); return measure(state, ch)
+        None => { post_reset(); return measure(state, ch) }
         Some(_) => ()
     }
     let uncal_code1 = read_last_measurement(state);
@@ -342,7 +342,7 @@ fn measure(state: &mut State, ch: Channel) -> (f64, u32, u32) {
     chop(state, true);
     let result2 = state.gpio.poll_interrupt(GPIO_DRDY, true, Some(time::Duration::from_millis(70))).unwrap();
     match result2 {
-        None => post_reset(); return measure(state, ch)
+        None => { post_reset(); return measure(state, ch) }
         Some(_) => ()
     }
     let uncal_code2 = read_last_measurement(state);
