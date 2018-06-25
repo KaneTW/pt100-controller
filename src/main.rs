@@ -1,9 +1,6 @@
-
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate prometheus;
-
+extern crate influent;
 extern crate rppal;
 
 use rppal::spi;
@@ -11,25 +8,13 @@ use rppal::gpio;
 use std::collections::HashMap;
 use std::time;
 use std::thread;
+use std::sync::{Arc, Barrier};
 
-use prometheus::{GaugeVec, IntGaugeVec};
 
-const LABELS: &'static [&'static str] = &["Channel"];
+use influent::create_client;
+use influent::client::{Client, Credentials};
+use influent::measurement::{Measurement, Value};
 
-lazy_static! {
-    static ref TEMP_GAUGE_VEC: GaugeVec = register_gauge_vec!(
-        "Temperature", "Measured Pt100 temperature", LABELS
-    ).unwrap();
-    static ref RES_GAUGE_VEC: GaugeVec = register_gauge_vec!(
-        "Resistance", "Measured resistance", LABELS
-    ).unwrap();
-    static ref CODE_GAUGE_VEC: IntGaugeVec = register_int_gauge_vec!(
-        "Code", "Calibrated ADC code", LABELS
-    ).unwrap();
-    static ref RAW_CODE_GAUGE_VEC: IntGaugeVec = register_int_gauge_vec!(
-        "RawCode", "Uncalibrated ADC code", LABELS
-    ).unwrap();
-}
 
 struct State {
     gpio: gpio::Gpio,
@@ -383,36 +368,45 @@ fn main() {
 
     post_reset(&mut state);
     let chs = [Channel::Ch1, Channel::Ch2, Channel::Ch3, Channel::Ch4];
-    let infinite_channels = chs.iter().cycle();
-    
-    let mut count: HashMap<&Channel, u64> = chs.iter().map(|x| (x,0)).collect();
-    let mut avg: HashMap<&Channel, f64> = chs.iter().map(|x| (x,0.0)).collect();
+
+    let credentials = Credentials {
+        username: env!("PT100_INFLUXDB_USER"),
+        password: env!("PT100_INFLUXDB_PASS"),
+        database: env!("PT100_INFLUXDB_DB"),
+    };
+
+    let hosts = vec!["http://localhost:8086"];
+
+    let client = create_client(credentials, hosts);
+
+    let (tx,rx) = sync_channel::<i32>(1024);
 
     thread::spawn(move || {
-        while true {
-            thread::sleep(time::Duration::from_millis(500));
-            let metric_families = prometheus::gather();
-            prometheus::push_metrics(
-                "smoker-pt100",
-                labels!{"instance".to_owned() => "smoker-rpi".to_owned(),},
-                &"http://127.0.0.1:9091",
-                metric_families
-            ).unwrap();
+        loop {
+            let (n,t,r,c,uc,ts) = rx.recv().unwrap();
+            let mut measurement = Measurement::new("pt100");
+            measurement.set_timestamp(ts);
+            measurement.add_field("temperature", Value::Float(t));
+            measurement.add_field("resistance", Value::Float(r));
+            measurement.add_field("code", Value::Integer(c as i64));
+            measurement.add_field("raw_code", Value::Integer(uc as i64));
+            measurement.add_tag("channel", n.to_string());
+            client.write_one(measurement, None);
         }
     });
 
-    for ch in infinite_channels {
-        let (r,c,uc) = measure(&mut state, *ch);
-        let temp = pt100_conversion(r);
+    loop {
+        for ch in chs.iter() {
+            let (r,c,uc) = measure(&mut state, *ch);
+            let temp = pt100_conversion(r);
+            
+            let ch_idx = *ch as u32;
 
-        
-        let ch_idx_str = &(*ch as u32).to_string();
+            let duration = time::SystemTime::now().duration_since(time::UNIX_EPOCH).unwrap();
+            let ts = duration.as_secs() * 1000 * 1000 * 1000 as i64 + (duration.subsec_nanos() as i64);
+            tx.send((ch_idx, temp, r, c, uc, ts)).unwrap();
 
-        TEMP_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(temp);
-        RES_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(r);
-        CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(c as i64);
-        RAW_CODE_GAUGE_VEC.with_label_values(&[ch_idx_str]).set(uc as i64);
-
-        println!("{:?}: [{},{},{},{}]", ch, temp, r, c, uc);
+            println!("{:?}: [{},{},{},{}]", ch, temp, r, c, uc);
+        }
     }
 }

@@ -6,8 +6,4 @@ authors = ["David Kraeutmann <kane@kane.cx>"]
 [dependencies]
 rppal = "0.6.0"
 lazy_static = "1.0"
-
-[dependencies.prometheus]
-git = "https://github.com/pingcap/rust-prometheus.git"
-default-features = false
-features = ["push"]
+influent = "0.4"
